@@ -2,6 +2,7 @@ import { Scene } from "phaser";
 import {
   compressToBase64,
   decompressFromBase64,
+  leapBoard,
   loadFromHighScoreLocalStorage,
   loadHistoryDataGhost,
   playSound,
@@ -33,12 +34,17 @@ import type {
 } from "../../../types";
 import { createKeyEvent } from "./keyEvent";
 import { createBg1, createGrassLand, createTower } from "./backObject";
-import { createCarCurveEmitter, createCarEmitter } from "./carEmitter";
+import {
+  createCarCurveEmitter,
+  createCarEmitter,
+  createConfettiEmitter,
+} from "./emitter";
 import {
   COLOR_ROAD,
   COLOR_ROAD_LINE_INNER,
   COLOR_ROAD_LINE_OUTER,
   COLOR_ROAD_START_LINE,
+  LAP_NUM,
   MAX_SPEED,
   PlayerY,
   ROAD_DATA_LR_UD,
@@ -48,11 +54,6 @@ import { createRoadObjects } from "./roadObject";
 import { formatTimeText, isWithinTwoMinutes, LapTimer } from "./lapTimer";
 import { isAvailableSound } from "../../main";
 import { MyGamepad } from "../../gamePad";
-
-// 線形補間
-function leapBoard(a: number, b: number, j: number, board: number) {
-  return (a * (board - j) + b * j) / board;
-}
 
 function getRoadData(level: GameLevel): RoadData {
   const dataLR = ROAD_DATA_LR_UD[level].DATA_LR;
@@ -99,7 +100,6 @@ export class MainScene extends Scene {
   speedMeter!: SpeedMeter;
   carEmitter!: Phaser.GameObjects.Particles.ParticleEmitter;
   carCurveEmitter!: Phaser.GameObjects.Particles.ParticleEmitter;
-  // school!: Phaser.GameObjects.Image;
   updateElapseAfterStart!: number;
   updateElapseBeforeStart!: number;
   isPlayerOutRoad!: boolean;
@@ -148,9 +148,6 @@ export class MainScene extends Scene {
   lapLimit!: number;
   txtGhostNote!: Phaser.GameObjects.Text;
   emitterConfetti!: Phaser.GameObjects.Particles.ParticleEmitter;
-
-  // pad!: Phaser.Input.Gamepad.Gamepad | undefined;
-  // fpsText!: Phaser.GameObjects.Text;
 
   constructor() {
     super("MainScene");
@@ -205,33 +202,7 @@ export class MainScene extends Scene {
       this.isGhostMode = false;
     }
   }
-  createConfetti() {
-    // 小さな矩形テクスチャを生成（カラーは tint で変える）
-    const g = this.make.graphics({ x: 0, y: 0 });
-    g.fillStyle(0xffffff, 1);
-    g.fillRect(0, 0, 6, 10); // 幅6px, 高さ10px の紙吹雪ピース
-    g.generateTexture("confetti", 6, 10);
-    const emitter = this.add
-      .particles(0, 0, "confetti", {
-        x: { min: -100, max: 500 },
-        y: -10,
-        speed: { min: 200, max: 400 },
-        blendMode: "ADD",
-        alpha: { start: 0.8, end: 0.83, random: true },
-        speedY: { min: 10, max: 10 },
-        lifespan: { min: 2000, max: 4000 },
-        gravityY: 5,
-        quantity: 5,
-        scale: { start: 2.05, end: 3.2, random: true },
-        rotate: { start: -720, end: 720, random: true },
-        tint: [0xff3b30, 0xffcc00, 0x4cd964, 0x007aff, 0xa52cff, 0xff3333],
-        frequency: 550,
-      })
-      .setDepth(99999999999);
-    this.carContainer.add(emitter);
-    emitter.stop();
-    return emitter;
-  }
+
   create() {
     createGameWrapper(this);
     this.createButton();
@@ -248,10 +219,6 @@ export class MainScene extends Scene {
     );
 
     this.isPlayerOutRoad = false;
-    // this.fpsText = this.add
-    //   .text(140, 60, "123", { font: "16px Arial", color: "#000" })
-    //   .setDepth(99999);
-
     this.roadGraphics = this.add.graphics();
 
     this.input.addPointer(1);
@@ -284,7 +251,6 @@ export class MainScene extends Scene {
 
     this.roadContainer.add(this.roadGraphics);
 
-    // this.speedMeter = new SpeedMeter(this, 474, 75, 18);
     this.speedMeter = new SpeedMeter(this, 211, 84, 21);
     this.speedMeter.setSpeed(0, MAX_SPEED, this.isGameover);
     this.cars = createCars(
@@ -296,8 +262,9 @@ export class MainScene extends Scene {
       this.roadData.enemyNum,
       this.gameLevel
     );
+
     const playerCar = this.cars[0];
-    this.createEmitter(playerCar);
+    this.createCarEmitter(playerCar);
     this.createBoardData();
     this.makeCourse();
 
@@ -305,254 +272,54 @@ export class MainScene extends Scene {
 
     playerCar.y = 0;
 
-    let courseName = "Race 1";
-    if (this.gameLevel === "hard") {
-      courseName = "Race 2";
-    } else if (this.gameLevel === "free") {
-      courseName = "Free";
-    } else if (this.gameLevel === "ghost_1") {
-      courseName = "Ghost 1";
-    } else if (this.gameLevel === "ghost_2") {
-      courseName = "Ghost 2";
-    }
+    const courseName = getCourseName(this.gameLevel);
 
-    const rectTotalTime = this.add.rectangle(
-      this.CX + 3,
-      88,
-      122,
-      29,
-      0x000000,
-      0.06
-    );
-    this.txtTotalTimer = this.add
-      .bitmapText(this.CX - 23, 112, "oldschool-black", "00'00.00", 36)
-      .setAlpha(0.78)
-      .setDepth(999999);
+    const totalTimer = this.createTextTotalTimer();
+    this.txtTotalTimer = totalTimer.text;
 
     this.roadContainer.add(this.txtTotalTimer);
     const prevHigh = loadFromHighScoreLocalStorage(this.gameLevel) || null;
-    this.txtPrevHighTimer = this.add
-      .bitmapText(
-        this.CX - 5,
-        65,
-        "oldschool-black",
-        "Rec: " + formatTimeText(prevHigh),
-        21
-      )
-      .setAlpha(0.7)
-      .setDepth(999999);
+
+    this.txtPrevHighTimer = this.createTextPrevHighTimer(prevHigh);
 
     this.roadContainer.add(this.txtPrevHighTimer);
 
     this.initLapTimeData();
     this.initLapTimerText();
-    // this.setLapTimeText();
 
     if (this.gameLevel === "free") {
       this.txtTotalTimer.setVisible(false);
-      rectTotalTime.setVisible(false);
+      totalTimer.rect.setVisible(false);
       this.txtPrevHighTimer.setVisible(false);
     }
-    this.sdCountdown = this.sound.add("321");
-    this.sdBikeStart = this.sound.add("bikeStart");
-    this.sdBikeRun = this.sound.add("bikeRun");
-    this.sdBikeBreak = this.sound.add("bikeBreak");
-    this.sdReady = this.sound.add("ready");
-    this.sdGo = this.sound.add("go");
 
-    this.sdLap2 = this.sound.add("lap2");
-    this.sdLapFinal = this.sound.add("lapFinal");
-    this.sdGoal = this.sound.add("goal");
-    this.sdGoalNewRecord = this.sound.add("goal-new-record");
-    this.sdContact = this.sound.add("contact");
+    this.setupSound();
 
     const txtStartNum = this.createTxtStartNum(courseName);
-
-    this.tweens.add({
-      targets: txtStartNum,
-      scaleY: [1.0, 0.8],
-      duration: 1100,
-      delay:
-        this.gameLevel === "ghost_1" || this.gameLevel === "ghost_2"
-          ? 5000
-          : 3000,
-      // duration: 1,
-      // delay: 1,
-      repeat: 1,
-      yoyo: true,
-      ease: "Sine.easeInOut",
-      onStart: () => {
-        txtStartNum.text = "Ready";
-        playSound(this.sdReady, 0.3);
-      },
-      onComplete: () => {
-        if (this.txtGhostNote) {
-          this.txtGhostNote.setVisible(false);
-        }
-        stopSound(this.sdReady);
-        playSound(this.sdCountdown, 0.3);
-        playSound(this.sdBikeStart, 0.3);
-        txtStartNum.setScale(1);
-        this.isCountdownStart = true;
-        txtStartNum.text = "3";
-        this.startCountdown(txtStartNum);
-      },
-    });
+    this.setupTweensStartNum(txtStartNum);
 
     this.txtGameOver = this.createtxtGameOver();
 
-    this.mapContainer = this.add
-      .container()
-      .setDepth(9999999)
-      // .setPosition(225, 115)
-      // .setAlpha(0.5)
-      .setPosition(485, 55)
-      .setScale(1 * 0.95, 1.28 * 0.95)
-      .setAngle(90);
-    if (this.gameLevel === "ghost_2") {
-      this.mapContainer.x += 3;
-      this.mapContainer.y -= 3;
-    } else if (this.gameLevel !== "easy") {
-      this.mapContainer.x -= 11;
-    }
+    this.mapContainer = this.createMapContainer();
+
     this.mapImage = this.createMapImage();
     this.mapContainer.add(this.mapImage);
 
     this.gMapPlayer = this.add.graphics();
     this.mapContainer.add(this.gMapPlayer);
+
     if (this.gameLevel === "free") {
       this.mapContainer.setVisible(false);
       this.speedMeter.hide();
     }
 
-    // --------------
-    this.lapLimit = 3;
+    this.lapLimit = LAP_NUM;
+
     if (this.isGhostMode) {
-      this.lapLimit = 1;
-      this.cars[1].x = this.cars[0].x;
-      this.cars[1].y = this.cars[0].y;
-      this.cars[1].image.setOrigin(
-        this.cars[0].image.originX,
-        this.cars[0].image.originY
-      );
-      this.cars[1].image.setScale(
-        this.cars[0].image.scaleX * 0.98,
-        this.cars[0].image.scaleY * 0.98
-      );
-      this.cars[1].image.setPosition(
-        this.cars[0].image.x,
-        this.cars[0].image.y
-      );
-      this.cars[1].image.setTint(0xddffff);
-      this.cars[1].image.setAlpha(0.7);
-
-      this.txtGhostNote = this.add
-        .text(
-          this.CX - 2,
-          160,
-          "自己ベスト走行をゴースト表示します\n- 初回は非表示\n- ２分以内に走り切った記録がない場合も非表示\n- このコースは１周のみ\n- 邪魔するバイクなし",
-          {
-            fontSize: 14,
-            color: "#fff",
-            lineSpacing: 5,
-            stroke: "#333",
-            strokeThickness: 4,
-          }
-        )
-        .setOrigin(0.5, 0)
-        .setVisible(true)
-        .setDepth(999999999);
-
-      if (this.playerTopHistory.length === 0) {
-        this.cars[1].image.setVisible(false);
-      }
+      this.initGhostMode();
     }
 
-    this.emitterConfetti = this.createConfetti();
-  }
-
-  startCountdown(txtStartNum: Phaser.GameObjects.BitmapText) {
-    let startTextNum = 3;
-
-    this.tweens.add({
-      targets: txtStartNum,
-      repeat: 2,
-      y: "-=20",
-      duration: 845,
-      onUpdate: (tween, _) => {
-        const progress = tween.progress;
-        if (progress < 0.85) {
-          if (this.cars[0].speed > MAX_SPEED * 0.6) {
-            this.cars[0].speed *= 0.25;
-          }
-        }
-        this.sdBikeStart.volume = (0.5 * this.cars[0].speed) / MAX_SPEED;
-      },
-      onRepeat: () => {
-        startTextNum--;
-        txtStartNum.text = `${startTextNum}`;
-      },
-      onComplete: () => {
-        txtStartNum.y += 20;
-        this.lapTimeObj.start(this.time.now);
-        stopSound(this.sdCountdown);
-        txtStartNum.text = "";
-        setTimeout(() => {
-          playSound(this.sdGo);
-          stopSound(this.sdBikeStart);
-          txtStartNum.text = "GO!!!!";
-          this.isGameReady = false;
-        }, 380);
-        this.tweens.add({
-          targets: txtStartNum,
-          duration: 800,
-          scale: 2,
-          alpha: 0,
-          onComplete: () => {
-            txtStartNum.visible = false;
-            txtStartNum.setScale(1);
-          },
-        });
-      },
-    });
-  }
-
-  createTxtStartNum(curseName: string) {
-    const txt = this.add
-      .bitmapText(this.CX, 130, "oldschool-white", `${curseName}`, 25)
-      .setTint(0xcc5656)
-      .setOrigin(0.5);
-
-    return txt;
-  }
-
-  createtxtGameOver() {
-    const txt = this.add
-      .bitmapText(this.CX + 10, 153, "oldschool-white", "Goal!!", 28)
-      .setTint(0xcc5656)
-      .setOrigin(0.5)
-      .setVisible(false);
-
-    return txt;
-  }
-
-  initLapTimerText() {
-    this.txtLapTimerList = [];
-    for (let i = 0; i < 3; i++) {
-      const lapText = this.add
-        .bitmapText(12, 330 + 35 * i, "oldschool-white", "", 25)
-        .setDepth(999999)
-        .setAlpha(0.7);
-
-      this.roadContainer.add(lapText);
-      this.txtLapTimerList.push(lapText);
-      if (this.isGhostMode || this.gameLevel === "free") {
-        lapText.visible = false;
-      }
-    }
-    for (let i = 0; i < 3; i++) {
-      this.lapTimeObj.setTxtLapTime(i, this.txtLapTimerList);
-    }
+    this.emitterConfetti = createConfettiEmitter(this, this.carContainer);
   }
 
   async savaHistoryRecordData() {
@@ -571,32 +338,18 @@ export class MainScene extends Scene {
   }
 
   update(time: number, delta: number) {
-    // this.fpsText.setText("FPS: " + this.game.loop.actualFps.toFixed(2));
-
     const playerCar = this.cars[0];
 
     this.roadData.dataLR[Math.trunc(playerCar.y / this.roadData.board)] + "";
 
     if (this.isGameover) {
-      // this.sound.stopAll();
-      this.tweens.add({
-        targets: playerCar.image,
-        scale: 0,
-        alpha: 0,
-        angle: 15,
-        y: 190,
-        duration: 400,
-      });
-
+      this.execGameoverPlayerCarTweens(playerCar);
       return;
     }
 
     this.gamepad.update(time, delta);
 
     if (!this.isGameReady) {
-      // this.playerHistory.push([playerCar.x, playerCar.y, playerCar.lr]);
-      // const hisData = Math.trunc((100 * playerCar.speed) / MAX_SPEED);
-
       if (this.isGhostMode && isWithinTwoMinutes(this.lapTimeObj.totalTime)) {
         this.playerCurRecord.push({
           x: playerCar.x,
@@ -605,55 +358,10 @@ export class MainScene extends Scene {
         });
       }
 
-      this.lapTimeObj.update(
-        playerCar.mileage,
-        this.txtTotalTimer,
-        this.txtLapTimerList,
-        (_lapNum) => {
-          if (this.isGhostMode) return;
-          if (_lapNum === 1) {
-            playSound(this.sdLap2, 0.3);
-          } else if (_lapNum === 2) {
-            playSound(this.sdLapFinal, 0.3);
-          }
-        },
-        this.gameLevel === "free"
-      );
+      this.updateRaceTime(playerCar);
     }
     if (this.gameLevel !== "free" && this.lapTimeObj.lapNum >= this.lapLimit) {
-      stopSound(this.sdBikeRun);
-      stopSound(this.sdBikeBreak);
-      this.isGameover = true;
-      this.emitterConfetti.start();
-
-      this.time.delayedCall(6000, () => {
-        this.emitterConfetti.stop();
-      });
-      const prevHigh = loadFromHighScoreLocalStorage(this.gameLevel) || null;
-      let isNewRecord = false;
-      if (!prevHigh || this.lapTimeObj.totalTime < prevHigh) {
-        saveToHighScoreLocalStorage(this.gameLevel, this.lapTimeObj.totalTime);
-
-        // 記録が2分以内の場合のみ履歴を記録する
-        if (this.isGhostMode && isWithinTwoMinutes(this.lapTimeObj.totalTime)) {
-          this.savaHistoryRecordData();
-        }
-
-        if (prevHigh) {
-          isNewRecord = true;
-        }
-      }
-
-      if (isNewRecord) {
-        playSound(this.sdGoalNewRecord, 0.3);
-        this.txtGameOver.text = "New Record!!";
-      } else {
-        playSound(this.sdGoal, 0.3);
-      }
-
-      this.carEmitter.stop();
-      this.carCurveEmitter.stop();
-      this.txtGameOver.visible = true;
+      this.handleGameover();
       return;
     }
 
@@ -669,53 +377,29 @@ export class MainScene extends Scene {
     }
 
     this.isPlayerOutRoad = Math.abs(playerCar.x - 400) > 355;
+
     if (
       (this.isGameReady && this.updateElapseBeforeStart % 70 === 0) ||
       (!this.isGameReady && this.updateElapseAfterStart % 50 === 0)
     ) {
       this.applyNaturalSlowdown(playerCar);
-      let color = 0xffffff;
-      if (playerCar.speed > 50) {
-        const t = playerCar.speed / (MAX_SPEED * 2);
-        const r = 255; //
-        const g = 255 * (1 - t * 0.5);
-        const b = 255 * (1 - t * 0.7);
-        color = (r << 16) | (g << 8) | b;
-      }
-
-      playerCar.image.setTint(color);
     }
+
     this.speedMeter.setSpeed(playerCar.speed, MAX_SPEED, this.isGameReady);
 
     this.applyEmmiterWithCarSpeed(playerCar);
     this.applyCurveEmmiterWithCarSpeed(playerCar);
 
     if (!this.isGameReady) {
-      playerCar.lr = calcPlayerLR(this.steer);
-      playerCar.x = getNextPlayerX(
-        playerCar,
-        this.curve,
-        this.roadData.cMax,
-        this.gameLevel
-      );
-      // const turnPower = this.calcTurnPower(playerCar.speed);
-      // playerCar.x = playerCar.x + playerCar.lr * turnPower * 0.1;
-      // if (playerCar.x < -190) {
-      //   playerCar.x = -190;
-      // } else if (playerCar.x > 990) {
-      //   playerCar.x = 990;
-      // }
+      this.applyPlayerLRX(playerCar);
       playerCar.image.setRotation(playerCar.lr * 0.025);
-      // playerCar.x -=
-      //   (playerCar.speed *
-      //     this.curve[Math.trunc(playerCar.y + PlayerY) % this.roadData.cMax]) /
-      //   350;
     }
 
     for (let car of this.cars) {
       if (this.isGameReady) {
         break;
       }
+
       if (
         !car.isPlayer &&
         this.isGhostMode &&
@@ -725,124 +409,27 @@ export class MainScene extends Scene {
       }
 
       if (car.isPlayer || !this.isGhostMode) {
-        const diffY = car.speed / 100;
-        car.y += diffY;
-        car.mileage += diffY;
-        if (car.y > this.roadData.cMax - 1) {
-          car.y -= this.roadData.cMax;
-        }
+        this.applyPlayerY(car);
       } else if (
         !car.isPlayer &&
         this.isGhostMode &&
         this.playerTopHistory.length > 0
       ) {
-        if (this.updateElapseAfterStart < this.playerTopHistory.length) {
-          car.x = this.playerTopHistory[this.updateElapseAfterStart].x;
-          car.y = this.playerTopHistory[this.updateElapseAfterStart].y;
-          car.image.setAngle(
-            this.playerTopHistory[this.updateElapseAfterStart].r
-          );
-        }
+        this.applyEnemyXYAngle(car);
       }
 
       if (!car.isPlayer && !this.isGhostMode) {
-        // 敵カーの制御
         if (this.updateElapseAfterStart % 1000 === 0) {
           this.applyNaturalSlowdown(car);
         }
+
         // 接触時の処理
-        const cx = car.x - playerCar.x;
-        const cy = car.y - ((playerCar.y + PlayerY) % this.roadData.cMax);
-        if (
-          this.gameLevel !== "free" &&
-          -98 <= cx &&
-          cx <= 98 &&
-          -40 <= cy &&
-          cy <= 40
-        ) {
-          // playerCar.x -= cx / 10;
-          // car.x += cx / 10;
-          if (cy > 5) {
-            if (!this.isContactSoundOn) {
-              const volume = 0.05 + (0.3 * playerCar.speed) / MAX_SPEED;
-              this.isContactSoundOn = true;
-              playSound(this.sdContact, volume);
-              setTimeout(() => {
-                this.isContactSoundOn = false;
-              }, 1000);
-            }
-            playerCar.speed = car.speed * 0.7;
-          } else {
-            car.speed = playerCar.speed * 0.3;
-          }
-        }
+        this.applyContactCars(playerCar, car);
 
-        // プレイヤーと離れすぎていたらスピードを調整する
-        const diffRate =
-          ((playerCar.y % this.roadData.cMax) - (car.y % this.roadData.cMax)) /
-          this.roadData.cMax;
+        // プレイヤーと敵の車が離れすぎていたら敵の車のスピードを調整する
+        this.adjustEnemyCarSpeedForDistancePlayerCar(playerCar, car);
 
-        let aveSp = 140;
-        if (this.gameLevel === "free") {
-          if (car.y - playerCar.y > 220) {
-            aveSp = 100 + car.id * 15;
-          } else {
-            aveSp += (Math.floor(playerCar.y) % 40) * 0.6 + car.id * 0.5;
-          }
-          if (aveSp > MAX_SPEED * 0.45) {
-            aveSp = 78 + Math.floor(Math.random() * 60);
-          }
-        } else {
-          aveSp = car.averageSpeed[this.lapTimeObj.lapNum];
-        }
-
-        let limitSpeed = aveSp;
-
-        if (0.065 < diffRate && diffRate < 0.35) {
-          limitSpeed *= 1.97;
-        } else if (-0.4 < diffRate && diffRate < -0.65) {
-          limitSpeed *= 0.43;
-        }
-
-        if (car.speed < limitSpeed) {
-          if (this.gameLevel === "free") {
-            const ns = car.speed + 2;
-            if (ns < MAX_SPEED * 0.88 - car.id * 4) {
-              car.speed = ns;
-            }
-            if ((car.id === 2 || car.id === 7) && Math.random() < 0.6) {
-              car.speed = playerCar.speed * 1.02;
-            }
-          } else {
-            car.speed += 3;
-          }
-        }
-
-        if (
-          (this.updateElapseAfterStart % 600 === car.curveTiming &&
-            car.lr === 0) ||
-          (car.curveTiming && car.lr !== 0 && Math.random() < 0.045)
-        ) {
-          if (car.x < playerCar.x) {
-            car.lr += Phaser.Math.Between(-1, 3);
-          } else {
-            car.lr += Phaser.Math.Between(-3, 1);
-          }
-
-          if (car.lr < -3) {
-            car.lr = -3;
-          } else if (car.lr > 3) {
-            car.lr = 3;
-          }
-        }
-        car.x = car.x + (car.lr * car.speed) / 50;
-        if (car.x < 50) {
-          car.x = 50;
-          car.lr = Math.trunc(car.lr * 0.9);
-        } else if (car.x > 750) {
-          car.x = 750;
-          car.lr = Math.trunc(car.lr * 0.9);
-        }
+        this.applyEnemyLRX(playerCar, car);
         car.image.setRotation(car.lr * 0.29);
       }
     }
@@ -851,60 +438,8 @@ export class MainScene extends Scene {
     const roadBasePosData = this.createRoadBasePosData(playerCar);
     this.draw(playerCar, roadBasePosData);
 
-    if (!this.isGameReady) {
-      if (!this.isStartSoundBikeRun && isAvailableSound()) {
-        this.isStartSoundBikeRun = true;
-        playSound(this.sdBikeRun, 0, true);
-      }
+    this.playSoundBikeRunBreak(playerCar);
 
-      // ---- エンジン音の変化 ----
-      const accel = playerCar.speed - playerCar.prevSpeed;
-      playerCar.prevSpeed = playerCar.speed;
-
-      // 基本ピッチ（速度に応じて上がる）
-      const baseRate =
-        0.1 +
-        (playerCar.speed / MAX_SPEED) * 0.86 -
-        (Math.abs(playerCar.lr) / 8) * 0.02 +
-        Math.sin(this.updateElapseAfterStart / 600) * 0.12;
-
-      // 加速時の短期的な上昇（ブオン感）
-      const accelEffect = Phaser.Math.Clamp(accel * 3.4, -0.1, 0.1);
-      // const accelEffect = 0.3;
-
-      // 実際の再生レート設定
-      this.sdBikeRun.setRate(baseRate + accelEffect);
-
-      // 音量も少し速度で変える（お好み）
-      const ss = this.updateElapseAfterStart % 300 < 150 ? 0.67 : 1;
-      this.sdBikeRun.setVolume(
-        ss *
-          (0.08 +
-            (0.5 * playerCar.speed) / MAX_SPEED +
-            Math.sin(this.updateElapseAfterStart / 6000) * 0.1321)
-      );
-
-      // const volume = 0.1 + (playerCar.speed / MAX_SPEED) * 0.45;
-      // if (Math.abs(this.steer) < 2) {
-      //   this.sdBikeRun.volume = volume;
-
-      //   this.breakSoundOn = false;
-      if (Math.abs(this.steer) >= 2) {
-        if (!this.isBreakSoundOn && playerCar.speed > MAX_SPEED * 0.4) {
-          this.isBreakSoundOn = true;
-          const baseRate = 0.8 + (playerCar.speed / 200) * 0.8;
-
-          this.sdBikeBreak.setRate(baseRate);
-          playSound(
-            this.sdBikeBreak,
-            (0.3 * playerCar.speed) / MAX_SPEED,
-            false
-          );
-        }
-      } else {
-        this.isBreakSoundOn = false;
-      }
-    }
     if (
       this.isGhostMode ||
       (!this.isGhostMode && this.updateElapseAfterStart % 3)
@@ -932,7 +467,7 @@ export class MainScene extends Scene {
       this.drawRoad(playerCar, i, roadPosData);
       this.moveRoadObjects(playerCar, i, roadPosData);
 
-      this.appleyPositionEnemyCars(
+      this.applyPositionEnemyCars(
         i,
         roadPosData,
         playerCar,
@@ -944,8 +479,90 @@ export class MainScene extends Scene {
     const roadPosData = this.calcRoadPosData(0, sy, roadBasePosData);
     this.hideEnemyCarsOutsideView(enemyCars, drawnEnemyCarIds, roadPosData);
   }
+  applyPlayerLRX(playerCar: Car) {
+    playerCar.lr = calcPlayerLR(this.steer);
+    playerCar.x = getNextPlayerX(
+      playerCar,
+      this.curve,
+      this.roadData.cMax,
+      this.gameLevel
+    );
+  }
 
-  appleyPositionEnemyCars(
+  applyPlayerY(playerCar: Car) {
+    const diffY = playerCar.speed / 100;
+    playerCar.y += diffY;
+    playerCar.mileage += diffY;
+    if (playerCar.y > this.roadData.cMax - 1) {
+      playerCar.y -= this.roadData.cMax;
+    }
+  }
+  applyEnemyLRX(playerCar: Car, enemyCar: Car) {
+    if (
+      (this.updateElapseAfterStart % 600 === enemyCar.curveTiming &&
+        enemyCar.lr === 0) ||
+      (enemyCar.curveTiming && enemyCar.lr !== 0 && Math.random() < 0.045)
+    ) {
+      if (enemyCar.x < playerCar.x) {
+        enemyCar.lr += Phaser.Math.Between(-1, 3);
+      } else {
+        enemyCar.lr += Phaser.Math.Between(-3, 1);
+      }
+
+      if (enemyCar.lr < -3) {
+        enemyCar.lr = -3;
+      } else if (enemyCar.lr > 3) {
+        enemyCar.lr = 3;
+      }
+    }
+    enemyCar.x = enemyCar.x + (enemyCar.lr * enemyCar.speed) / 50;
+    if (enemyCar.x < 50) {
+      enemyCar.x = 50;
+      enemyCar.lr = Math.trunc(enemyCar.lr * 0.9);
+    } else if (enemyCar.x > 750) {
+      enemyCar.x = 750;
+      enemyCar.lr = Math.trunc(enemyCar.lr * 0.9);
+    }
+  }
+
+  applyEnemyXYAngle(enemyCar: Car) {
+    if (this.updateElapseAfterStart < this.playerTopHistory.length) {
+      enemyCar.x = this.playerTopHistory[this.updateElapseAfterStart].x;
+      enemyCar.y = this.playerTopHistory[this.updateElapseAfterStart].y;
+      enemyCar.image.setAngle(
+        this.playerTopHistory[this.updateElapseAfterStart].r
+      );
+    }
+  }
+
+  applyContactCars(playerCar: Car, enemyCar: Car) {
+    // 接触時の処理
+    const cx = enemyCar.x - playerCar.x;
+    const cy = enemyCar.y - ((playerCar.y + PlayerY) % this.roadData.cMax);
+    if (
+      this.gameLevel !== "free" &&
+      -98 <= cx &&
+      cx <= 98 &&
+      -40 <= cy &&
+      cy <= 40
+    ) {
+      if (cy > 5) {
+        if (!this.isContactSoundOn) {
+          const volume = 0.05 + (0.3 * playerCar.speed) / MAX_SPEED;
+          this.isContactSoundOn = true;
+          playSound(this.sdContact, volume);
+          setTimeout(() => {
+            this.isContactSoundOn = false;
+          }, 1000);
+        }
+        playerCar.speed = enemyCar.speed * 0.7;
+      } else {
+        enemyCar.speed = playerCar.speed * 0.3;
+      }
+    }
+  }
+
+  applyPositionEnemyCars(
     index: number,
     p: RoadPosData,
     playerCar: Car,
@@ -973,10 +590,6 @@ export class MainScene extends Scene {
           const scale = 0.05 + this.dataBoardW[index] / this.dataBoardW[0];
           car.image.setScale(Math.max(0.01, scale * 0.84));
         }
-        // car.image.y = p.uy + car.image.getBounds().height * 2;
-        // car.image.x = p.ux + (car.x * this.dataBoardW[index]) / 800;
-        // const scale = 0.05 + this.dataBoardW[index] / this.dataBoardW[0];
-        // car.image.setScale(Math.max(0.01, scale * 0.84));
         setTimeout(() => {
           car.image.visible = true;
         }, 1);
@@ -985,6 +598,48 @@ export class MainScene extends Scene {
         this.carContainer.bringToTop(car.image);
       } else {
         this.carContainer.sendToBack(car.image);
+      }
+    }
+  }
+
+  adjustEnemyCarSpeedForDistancePlayerCar(playerCar: Car, enemyCar: Car) {
+    const diffRate =
+      ((playerCar.y % this.roadData.cMax) - (enemyCar.y % this.roadData.cMax)) /
+      this.roadData.cMax;
+
+    let aveSp = 140;
+    if (this.gameLevel === "free") {
+      if (enemyCar.y - playerCar.y > 220) {
+        aveSp = 100 + enemyCar.id * 15;
+      } else {
+        aveSp += (Math.floor(playerCar.y) % 40) * 0.6 + enemyCar.id * 0.5;
+      }
+      if (aveSp > MAX_SPEED * 0.45) {
+        aveSp = 78 + Math.floor(Math.random() * 60);
+      }
+    } else {
+      aveSp = enemyCar.averageSpeed[this.lapTimeObj.lapNum];
+    }
+
+    let limitSpeed = aveSp;
+
+    if (0.065 < diffRate && diffRate < 0.35) {
+      limitSpeed *= 1.97;
+    } else if (-0.4 < diffRate && diffRate < -0.65) {
+      limitSpeed *= 0.43;
+    }
+
+    if (enemyCar.speed < limitSpeed) {
+      if (this.gameLevel === "free") {
+        const ns = enemyCar.speed + 2;
+        if (ns < MAX_SPEED * 0.88 - enemyCar.id * 4) {
+          enemyCar.speed = ns;
+        }
+        if ((enemyCar.id === 2 || enemyCar.id === 7) && Math.random() < 0.6) {
+          enemyCar.speed = playerCar.speed * 1.02;
+        }
+      } else {
+        enemyCar.speed += 3;
       }
     }
   }
@@ -1022,13 +677,6 @@ export class MainScene extends Scene {
     const scaleRateX = rate * scale.x;
     const scaleRateY = rate * scale.y;
 
-    // const scaleRateX = 1 * obj.scale.x;
-    // const scaleRateY = 1 * obj.scale.y;
-
-    // obj.sprite.x = ux + uw + 60 * obj.side * rate;
-    // obj.sprite.x = ux + 100 * (obj.side + 2) * rate;
-    // obj.sprite.x = ux+ (uw / 4) * obj.side * rate;
-    // obj.x = ux + (uw / 4) * (obj.side + 2);
     obj.image.x = obj.side === "left" ? ux - uw * 0.1 : ux + uw * 1.1;
     obj.image.setScale(scaleRateX, scaleRateY);
 
@@ -1205,10 +853,7 @@ export class MainScene extends Scene {
       TIME: () => {
         this.scene.start("ClockScene");
       },
-      howto: () => {},
       easy: () => {
-        // if (!this.isGameover) return;
-        // muteFunc();
         this.scene.start("MainScene", { gameLevel: "easy" });
       },
       hard: () => {
@@ -1231,7 +876,8 @@ export class MainScene extends Scene {
     // const isGuardBgm = () => this.isGameover || this.isGameReady;
     createSoundButton(this);
   }
-  createEmitter(playerCar: Car) {
+
+  createCarEmitter(playerCar: Car) {
     this.carEmitter = createCarEmitter(
       this,
       playerCar.image.x + 20,
@@ -1249,6 +895,7 @@ export class MainScene extends Scene {
     );
     this.carCurveEmitter.start();
   }
+
   createBoardData() {
     const board = this.roadData.board;
     this.dataBoardW = [];
@@ -1308,20 +955,24 @@ export class MainScene extends Scene {
         this.carEmitter.x = playerCar.image.x + 25;
         this.carEmitter.y = playerCar.image.y - 17;
       } else {
-        const r = 21;
         const rad = playerCar.image.rotation;
+
+        // this.carEmitter.x =
+        //   playerCar.image.x + Math.cos(rad) * r + (this.steer > 0 ? 25 : -8);
+        // this.carEmitter.y = playerCar.image.y + Math.sin(rad) * r - 17;
+
+        const baseX = 25;
+        const baseY = -17;
         this.carEmitter.x =
-          playerCar.image.x + Math.cos(rad) * r + (this.steer > 0 ? 25 : -8);
-        this.carEmitter.y = playerCar.image.y + Math.sin(rad) * r - 17;
+          playerCar.image.x + baseX * Math.cos(rad) - baseY * Math.sin(rad);
+
+        this.carEmitter.y =
+          playerCar.image.y + baseX * Math.sin(rad) + baseY * Math.cos(rad);
       }
 
       this.carEmitter.setScale((1.32 * playerCar.speed) / MAX_SPEED);
       this.carEmitter.setAlpha((3 * playerCar.speed) / MAX_SPEED);
       this.carEmitter.setAngle(playerCar.image.angle * 0.8);
-      // this.carEmitter.setParticleGravity(
-      //   playerCar.image.angle * 1.3,
-      //   170 - Math.abs(playerCar.image.angle) * 4
-      // );
     }
   }
 
@@ -1460,6 +1111,23 @@ export class MainScene extends Scene {
     return this.mapPoints[Math.trunc(carY) % this.roadData.cMax];
   }
 
+  createMapContainer() {
+    const mapContainer = this.add
+      .container()
+      .setDepth(9999999)
+      .setPosition(485, 55)
+      .setScale(1 * 0.95, 1.28 * 0.95)
+      .setAngle(90);
+
+    if (this.gameLevel === "ghost_2") {
+      mapContainer.x += 3;
+      mapContainer.y -= 3;
+    } else if (this.gameLevel !== "easy") {
+      mapContainer.x -= 11;
+    }
+    return mapContainer;
+  }
+
   drawCarMarkOnMap() {
     this.gMapPlayer.clear();
     for (let i = 0; i < this.cars.length; i++) {
@@ -1486,18 +1154,149 @@ export class MainScene extends Scene {
     }
   }
 
+  setupSound() {
+    this.sdCountdown = this.sound.add("321");
+    this.sdBikeStart = this.sound.add("bikeStart");
+    this.sdBikeRun = this.sound.add("bikeRun");
+    this.sdBikeBreak = this.sound.add("bikeBreak");
+    this.sdReady = this.sound.add("ready");
+    this.sdGo = this.sound.add("go");
+
+    this.sdLap2 = this.sound.add("lap2");
+    this.sdLapFinal = this.sound.add("lapFinal");
+    this.sdGoal = this.sound.add("goal");
+    this.sdGoalNewRecord = this.sound.add("goal-new-record");
+    this.sdContact = this.sound.add("contact");
+  }
+
+  setupTweensStartNum(txtStartNum: Phaser.GameObjects.BitmapText) {
+    this.tweens.add({
+      targets: txtStartNum,
+      scaleY: [1.0, 0.8],
+      duration: 1100,
+      delay:
+        this.gameLevel === "ghost_1" || this.gameLevel === "ghost_2"
+          ? 5000
+          : 3000,
+      // duration: 1,
+      // delay: 1,
+      repeat: 1,
+      yoyo: true,
+      ease: "Sine.easeInOut",
+      onStart: () => {
+        txtStartNum.text = "Ready";
+        playSound(this.sdReady, 0.3);
+      },
+      onComplete: () => {
+        if (this.txtGhostNote) {
+          this.txtGhostNote.setVisible(false);
+        }
+        stopSound(this.sdReady);
+        playSound(this.sdCountdown, 0.3);
+        playSound(this.sdBikeStart, 0.3);
+        txtStartNum.setScale(1);
+        this.isCountdownStart = true;
+        txtStartNum.text = "3";
+        this.startCountdown(txtStartNum);
+      },
+    });
+  }
+
+  initGhostMode() {
+    this.lapLimit = 1;
+    this.cars[1].x = this.cars[0].x;
+    this.cars[1].y = this.cars[0].y;
+    this.cars[1].image.setOrigin(
+      this.cars[0].image.originX,
+      this.cars[0].image.originY
+    );
+    this.cars[1].image.setScale(
+      this.cars[0].image.scaleX * 0.98,
+      this.cars[0].image.scaleY * 0.98
+    );
+    this.cars[1].image.setPosition(this.cars[0].image.x, this.cars[0].image.y);
+    this.cars[1].image.setTint(0xddffff);
+    this.cars[1].image.setAlpha(0.7);
+
+    this.txtGhostNote = this.add
+      .text(
+        this.CX - 2,
+        160,
+        "自己ベスト走行をゴースト表示します\n- 初回は非表示\n- ２分以内に走り切った記録がない場合も非表示\n- このコースは１周のみ\n- 邪魔するバイクなし",
+        {
+          fontSize: 14,
+          color: "#fff",
+          lineSpacing: 5,
+          stroke: "#333",
+          strokeThickness: 4,
+        }
+      )
+      .setOrigin(0.5, 0)
+      .setVisible(true)
+      .setDepth(999999999);
+
+    if (this.playerTopHistory.length === 0) {
+      this.cars[1].image.setVisible(false);
+    }
+  }
+
+  createTxtStartNum(curseName: string) {
+    const txt = this.add
+      .bitmapText(this.CX, 130, "oldschool-white", `${curseName}`, 25)
+      .setTint(0xcc5656)
+      .setOrigin(0.5);
+
+    return txt;
+  }
+
+  createtxtGameOver() {
+    const txt = this.add
+      .bitmapText(this.CX + 10, 153, "oldschool-white", "Goal!!", 28)
+      .setTint(0xcc5656)
+      .setOrigin(0.5)
+      .setVisible(false);
+
+    return txt;
+  }
+
+  execGameoverPlayerCarTweens(playerCar: Car) {
+    this.tweens.add({
+      targets: playerCar.image,
+      scale: 0,
+      alpha: 0,
+      angle: 15,
+      y: 190,
+      duration: 400,
+    });
+  }
+
+  initLapTimerText() {
+    this.txtLapTimerList = [];
+    for (let i = 0; i < 3; i++) {
+      const lapText = this.add
+        .bitmapText(12, 330 + 35 * i, "oldschool-white", "", 25)
+        .setDepth(999999)
+        .setAlpha(0.7);
+
+      this.roadContainer.add(lapText);
+      this.txtLapTimerList.push(lapText);
+      if (this.isGhostMode || this.gameLevel === "free") {
+        lapText.visible = false;
+      }
+    }
+    for (let i = 0; i < 3; i++) {
+      this.lapTimeObj.setTxtLapTime(i, this.txtLapTimerList);
+    }
+  }
+
   createMapImage() {
     const _mapPoints = [];
 
     const data = ROAD_DATA_LR_UD[this.gameLevel].DATA_LR;
-    // Graphicsを作成
-
     const g = this.add.graphics();
 
-    g.lineStyle(5, 0xffffff, 0.9); // 線の太さ, 色, 透明度
+    g.lineStyle(5, 0xffffff, 0.9);
 
-    // const baseX = 50;
-    // const baseY = 50;
     let baseX = 60;
     let baseY = 60;
     let rangeX = 6 * 1.15;
@@ -1536,7 +1335,6 @@ export class MainScene extends Scene {
 
       _mapPoints.push({ x: x2, y: y2, angle: angle });
     }
-    // g.lineTo(baseX, baseY);
     g.strokePath();
     // goal line
     if (this.gameLevel !== "free") {
@@ -1548,12 +1346,6 @@ export class MainScene extends Scene {
     const maxYObj = _mapPoints.reduce((v, obj) => (obj.y > v.y ? obj : v));
     const minXObj = _mapPoints.reduce((v, obj) => (obj.x < v.x ? obj : v));
     const minYObj = _mapPoints.reduce((v, obj) => (obj.y < v.y ? obj : v));
-
-    // console.log(minXObj.x);
-    // console.log(minYObj.y);
-
-    // console.log(maxXObj.x);
-    // console.log(maxYObj.y);
 
     if (this.gameLevel === "easy") {
       const width = maxXObj.x - minXObj.x + 20;
@@ -1606,7 +1398,192 @@ export class MainScene extends Scene {
 
     return map;
   }
+
+  playSoundBikeRunBreak(playerCar: Car) {
+    if (!this.isGameReady) {
+      if (!this.isStartSoundBikeRun && isAvailableSound()) {
+        this.isStartSoundBikeRun = true;
+        playSound(this.sdBikeRun, 0, true);
+      }
+
+      // ---- エンジン音の変化 ----
+      const accel = playerCar.speed - playerCar.prevSpeed;
+      playerCar.prevSpeed = playerCar.speed;
+
+      // 基本ピッチ（速度に応じて上がる）
+      const baseRate =
+        0.1 +
+        (playerCar.speed / MAX_SPEED) * 0.86 -
+        (Math.abs(playerCar.lr) / 8) * 0.02 +
+        Math.sin(this.updateElapseAfterStart / 600) * 0.12;
+
+      // 加速時の短期的な上昇（ブオン感）
+      const accelEffect = Phaser.Math.Clamp(accel * 3.4, -0.1, 0.1);
+      // const accelEffect = 0.3;
+
+      // 実際の再生レート設定
+      this.sdBikeRun.setRate(baseRate + accelEffect);
+
+      // 音量も少し速度で変える
+      const ss = this.updateElapseAfterStart % 300 < 150 ? 0.67 : 1;
+      this.sdBikeRun.setVolume(
+        ss *
+          (0.08 +
+            (0.5 * playerCar.speed) / MAX_SPEED +
+            Math.sin(this.updateElapseAfterStart / 6000) * 0.1321)
+      );
+
+      if (Math.abs(this.steer) >= 2) {
+        if (!this.isBreakSoundOn && playerCar.speed > MAX_SPEED * 0.4) {
+          this.isBreakSoundOn = true;
+          const baseRate = 0.8 + (playerCar.speed / 200) * 0.8;
+
+          this.sdBikeBreak.setRate(baseRate);
+          playSound(
+            this.sdBikeBreak,
+            (0.3 * playerCar.speed) / MAX_SPEED,
+            false
+          );
+        }
+      } else {
+        this.isBreakSoundOn = false;
+      }
+    }
+  }
+
+  updateRaceTime(playerCar: Car) {
+    this.lapTimeObj.update(
+      playerCar.mileage,
+      this.txtTotalTimer,
+      this.txtLapTimerList,
+      (_lapNum) => {
+        if (this.isGhostMode) return;
+        if (_lapNum === 1) {
+          playSound(this.sdLap2, 0.3);
+        } else if (_lapNum === 2) {
+          playSound(this.sdLapFinal, 0.3);
+        }
+      },
+      this.gameLevel === "free"
+    );
+  }
+
+  handleGameover() {
+    stopSound(this.sdBikeRun);
+    stopSound(this.sdBikeBreak);
+    this.isGameover = true;
+    this.emitterConfetti.start();
+
+    this.time.delayedCall(6000, () => {
+      this.emitterConfetti.stop();
+    });
+    const prevHigh = loadFromHighScoreLocalStorage(this.gameLevel) || null;
+    let isNewRecord = false;
+    if (!prevHigh || this.lapTimeObj.totalTime < prevHigh) {
+      saveToHighScoreLocalStorage(this.gameLevel, this.lapTimeObj.totalTime);
+
+      // 記録が2分以内の場合のみ履歴を記録する
+      if (this.isGhostMode && isWithinTwoMinutes(this.lapTimeObj.totalTime)) {
+        this.savaHistoryRecordData();
+      }
+
+      if (prevHigh) {
+        isNewRecord = true;
+      }
+    }
+
+    if (isNewRecord) {
+      playSound(this.sdGoalNewRecord, 0.3);
+      this.txtGameOver.text = "New Record!!";
+    } else {
+      playSound(this.sdGoal, 0.3);
+    }
+
+    this.carEmitter.stop();
+    this.carCurveEmitter.stop();
+    this.txtGameOver.visible = true;
+  }
+
+  createTextTotalTimer() {
+    const rectTotalTimer = this.add.rectangle(
+      this.CX + 3,
+      88,
+      122,
+      29,
+      0x000000,
+      0.06
+    );
+
+    const txtTotalTimer = this.add
+      .bitmapText(this.CX - 23, 112, "oldschool-black", "00'00.00", 36)
+      .setAlpha(0.78)
+      .setDepth(999999);
+
+    return { text: txtTotalTimer, rect: rectTotalTimer };
+  }
+
+  createTextPrevHighTimer(prevHigh: number | null) {
+    const txtPrevHighTimer = this.add
+      .bitmapText(
+        this.CX - 5,
+        65,
+        "oldschool-black",
+        "Rec: " + formatTimeText(prevHigh),
+        21
+      )
+      .setAlpha(0.7)
+      .setDepth(999999);
+
+    return txtPrevHighTimer;
+  }
+
+  startCountdown(txtStartNum: Phaser.GameObjects.BitmapText) {
+    let startTextNum = 3;
+
+    this.tweens.add({
+      targets: txtStartNum,
+      repeat: 2,
+      y: "-=20",
+      duration: 845,
+      onUpdate: (tween, _) => {
+        const progress = tween.progress;
+        if (progress < 0.85) {
+          if (this.cars[0].speed > MAX_SPEED * 0.6) {
+            this.cars[0].speed *= 0.25;
+          }
+        }
+        this.sdBikeStart.volume = (0.5 * this.cars[0].speed) / MAX_SPEED;
+      },
+      onRepeat: () => {
+        startTextNum--;
+        txtStartNum.text = `${startTextNum}`;
+      },
+      onComplete: () => {
+        txtStartNum.y += 20;
+        this.lapTimeObj.start(this.time.now);
+        stopSound(this.sdCountdown);
+        txtStartNum.text = "";
+        setTimeout(() => {
+          playSound(this.sdGo);
+          stopSound(this.sdBikeStart);
+          txtStartNum.text = "GO!!!!";
+          this.isGameReady = false;
+        }, 380);
+        this.tweens.add({
+          targets: txtStartNum,
+          duration: 800,
+          scale: 2,
+          alpha: 0,
+          onComplete: () => {
+            txtStartNum.visible = false;
+            txtStartNum.setScale(1);
+          },
+        });
+      },
+    });
+  }
 }
+
 function lerpAngle(start: number, end: number, t: number) {
   let delta = end - start;
 
@@ -1717,4 +1694,18 @@ function getNextPlayerX(
     nextX = maxX;
   }
   return nextX;
+}
+function getCourseName(gameLevel: GameLevel) {
+  let courseName = "Race 1";
+  if (gameLevel === "hard") {
+    courseName = "Race 2";
+  } else if (gameLevel === "free") {
+    courseName = "Free";
+  } else if (gameLevel === "ghost_1") {
+    courseName = "Ghost 1";
+  } else if (gameLevel === "ghost_2") {
+    courseName = "Ghost 2";
+  }
+
+  return courseName;
 }

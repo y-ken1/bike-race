@@ -21,13 +21,19 @@ const PositionData = {
   CLOCK_GAME: {
     TIME: (scene: Phaser.Scene) => {
       return {
-        x: scene.cameras.main.centerX - 70,
+        x: scene.cameras.main.centerX - 100,
         y: 344,
       };
     },
     reset: (scene: Phaser.Scene) => {
       return {
-        x: scene.cameras.main.centerX + 70,
+        x: scene.cameras.main.centerX + 100,
+        y: 344,
+      };
+    },
+    help: (scene: Phaser.Scene) => {
+      return {
+        x: scene.cameras.main.centerX,
         y: 344,
       };
     },
@@ -122,6 +128,13 @@ export function createClockGameButtons(
     handleClockGameButton.reset
   );
 
+  createClockGameButton(
+    scene,
+    PositionData.CLOCK_GAME.help(scene).x,
+    PositionData.CLOCK_GAME.help(scene).y,
+    "help",
+    handleClockGameButton.help
+  );
   createClockGameButton(
     scene,
     PositionData.CLOCK_GAME.EASY(scene).x,

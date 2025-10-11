@@ -4,7 +4,7 @@ export function createClockGameButton(
   scene: Phaser.Scene,
   x: number,
   y: number,
-  type: "TIME" | "reset" | GameLevel,
+  type: "TIME" | "reset" | "help" | GameLevel,
   handleClick: () => void
 ) {
   // outer
@@ -25,6 +25,8 @@ export function createClockGameButton(
   let btnLabel = "TIME";
   if (type === "reset") {
     btnLabel = "RESET";
+  } else if (type === "help") {
+    btnLabel = "HELP";
   } else if (type === "easy") {
     btnLabel = "Race 1";
   } else if (type === "hard") {
@@ -40,7 +42,10 @@ export function createClockGameButton(
   text.setScale(0.7, 0.72);
   text.setTint(0x201000);
   text.setOrigin(0.5);
-  if (type === "reset" && scene.scene.key !== "ClockScene") {
+  if (
+    (type === "reset" || type === "help") &&
+    scene.scene.key !== "ClockScene"
+  ) {
     text.setAlpha(0.35);
   }
 

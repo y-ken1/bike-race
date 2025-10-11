@@ -1,6 +1,6 @@
 import type { GameLevel, LevelRoadLRUD } from "../types";
 
-// export const CAR_NUM = 2;
+export const LAP_NUM = 3;
 export const PlayerY = 0;
 
 export const MAX_SPEED = 250;

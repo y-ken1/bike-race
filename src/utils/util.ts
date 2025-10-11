@@ -107,3 +107,8 @@ export async function decompressFromBase64(compressed: string) {
   const decompressed = LZString.decompressFromUTF16(compressed);
   return decompressed;
 }
+
+// 線形補間
+export function leapBoard(a: number, b: number, j: number, board: number) {
+  return (a * (board - j) + b * j) / board;
+}

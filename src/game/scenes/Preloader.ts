@@ -72,6 +72,8 @@ export class Preloader extends Scene {
       "fonts/oldschool.fnt"
     );
     this.load.image("clock-bg", "images/clock-bg.png");
+    this.load.image("help", "images/help.png");
+    this.load.image("reset", "images/reset.png");
     this.load.image("game-wrapper", "images/game_wrapper.png");
     this.load.image("bg1", "images/bg1.jpg");
     this.load.image("tower", "images/tower.png");
