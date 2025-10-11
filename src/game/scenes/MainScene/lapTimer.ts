@@ -52,11 +52,12 @@ export class LapTimer {
     if (this.lapNum >= this.lapData.length) {
       return;
     }
-    this.totalTime = nowTime - this.startTime;
+    this.totalTime = Number((nowTime - this.startTime).toFixed(2));
     txtTotalTime.text = formatTimeText(this.totalTime);
 
-    this.lapData[this.lapNum].lapTime =
-      nowTime - (this.lapData[this.lapNum].lapStartTime || 0);
+    this.lapData[this.lapNum].lapTime = Number(
+      (nowTime - (this.lapData[this.lapNum].lapStartTime || 0)).toFixed(2)
+    );
 
     for (let i = 0; i < txtLapTimeList.length; i++) {
       this.setTxtLapTime(i, txtLapTimeList);
@@ -88,14 +89,29 @@ export function formatTimeText(time: number | null) {
   if (time === null) {
     return "--'--.--";
   }
-  const _time = time / 1000;
-  const minutes = Math.floor(_time / 60);
-  const seconds = Math.floor(_time % 60);
-  const fractions = (_time % 1).toFixed(2).substring(1);
+  const totalHundredths = Math.floor(time / 10);
+  const minutes = Math.floor(totalHundredths / 6000);
+  const seconds = Math.floor((totalHundredths % 6000) / 100);
+  const handredths = totalHundredths % 100;
+
+  // const fractions = (totalHundredths % 1).toFixed(2).substring(1);
   const mStr = String(minutes).padStart(2, "0");
   const sStr = String(seconds).padStart(2, "0");
-  return `${mStr}'${sStr}${fractions}`;
+  const fStr = handredths.toString().padStart(2, "0");
+  return `${mStr}'${sStr}.${fStr}`;
 }
+// export function formatTimeText(time: number | null) {
+//   if (time === null) {
+//     return "--'--.--";
+//   }
+//   const _time = time / 1000;
+//   const minutes = Math.floor(_time / 60);
+//   const seconds = Math.floor(_time % 60);
+//   const fractions = (_time % 1).toFixed(2).substring(1);
+//   const mStr = String(minutes).padStart(2, "0");
+//   const sStr = String(seconds).padStart(2, "0");
+//   return `${mStr}'${sStr}${fractions}`;
+// }
 
 // 2分以内かどうか
 export function isWithinTwoMinutes(time: number | null): boolean {
