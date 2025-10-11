@@ -65,6 +65,7 @@ export class ClockScene extends Scene {
   }
 
   create() {
+    this.sound.stopAll();
     this.input.addPointer(1);
     this.initialize();
 

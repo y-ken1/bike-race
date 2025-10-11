@@ -851,21 +851,27 @@ export class MainScene extends Scene {
 
     const handleClockGameButton: ClockGameButtonHandlers = {
       TIME: () => {
+        this.sound.stopAll();
         this.scene.start("ClockScene");
       },
       easy: () => {
+        this.sound.stopAll();
         this.scene.start("MainScene", { gameLevel: "easy" });
       },
       hard: () => {
+        this.sound.stopAll();
         this.scene.start("MainScene", { gameLevel: "hard" });
       },
       ghost_1: () => {
+        this.sound.stopAll();
         this.scene.start("MainScene", { gameLevel: "ghost_1" });
       },
       ghost_2: () => {
+        this.sound.stopAll();
         this.scene.start("MainScene", { gameLevel: "ghost_2" });
       },
       free: () => {
+        this.sound.stopAll();
         this.scene.start("MainScene", { gameLevel: "free" });
       },
     };
