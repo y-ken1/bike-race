@@ -323,11 +323,18 @@ export class MainScene extends Scene {
   }
 
   async savaHistoryRecordData() {
+    // const _rec = this.playerCurRecord.map((d) => {
+    //   return {
+    //     x: Math.trunc(d.x),
+    //     y: Math.trunc(d.y),
+    //     r: Math.trunc(d.r),
+    //   };
+    // });
     const _rec = this.playerCurRecord.map((d) => {
       return {
-        x: Math.trunc(d.x),
-        y: Math.trunc(d.y),
-        r: Math.trunc(d.r),
+        x: Math.floor(d.x),
+        y: d.y.toFixed(1),
+        r: Math.floor(d.r),
       };
     });
     const comp = await compressToBase64(JSON.stringify(_rec));
