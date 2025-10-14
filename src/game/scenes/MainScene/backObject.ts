@@ -1,15 +1,15 @@
-import type { GameLevel } from "../../../types";
+import type { GameLevelProps } from "../../../types";
 
 export function createBg1(
   scene: Phaser.Scene,
   container: Phaser.GameObjects.Container,
-  gameLevel: GameLevel
+  gameLevel: GameLevelProps
 ) {
   const bg1 = scene.add.image(0, 0, "bg1").setScale(2.5, 2.45).setOrigin(0, 0);
   container.add(bg1);
-  if (gameLevel === "free") {
+  if (gameLevel.mode === "free") {
     bg1.setTint(0xffffff);
-    setupTweensForBg1WhenGameLevelFree(scene, bg1);
+    setupTweensForBg1WhenGameLevelFree(scene, bg1, gameLevel);
   }
   return bg1;
 }
@@ -31,14 +31,14 @@ export function createTower(
 export function createGrassLand(
   scene: Phaser.Scene,
   container: Phaser.GameObjects.Container,
-  gamelevel: GameLevel
+  gamelevel: GameLevelProps
 ) {
   const grassLand = scene.add.image(0, 0, "grass").setOrigin(0, 0);
 
-  if (gamelevel === "free") {
+  if (gamelevel.mode === "free") {
     grassLand.setTint(0xccddcc);
-    setupTweensForGrassLandWhenGameLevelFree(scene, grassLand);
-  } else if (gamelevel === "ghost_2") {
+    setupTweensForGrassLandWhenGameLevelFree(scene, grassLand, gamelevel);
+  } else if (gamelevel.name === "ghost_2") {
     grassLand.setTint(0x6cddff);
   } else {
     grassLand.setTint(0xccddcc);
@@ -50,7 +50,8 @@ export function createGrassLand(
 
 function setupTweensForBg1WhenGameLevelFree(
   scene: Phaser.Scene,
-  bg1: Phaser.GameObjects.Image
+  bg1: Phaser.GameObjects.Image,
+  gameLevel: GameLevelProps
 ) {
   const colors = [
     Phaser.Display.Color.ValueToColor(0xffffff),
@@ -61,7 +62,7 @@ function setupTweensForBg1WhenGameLevelFree(
   scene.tweens.add({
     targets: colorObj,
     t: 1,
-    duration: 60000,
+    duration: gameLevel.isAuto ? 62000 : 60000,
     ease: "Linear",
     delay: 8000,
     repeat: -1,
@@ -87,7 +88,8 @@ function setupTweensForBg1WhenGameLevelFree(
 
 function setupTweensForGrassLandWhenGameLevelFree(
   scene: Phaser.Scene,
-  grassLand: Phaser.GameObjects.Image
+  grassLand: Phaser.GameObjects.Image,
+  gameLevel: GameLevelProps
 ) {
   const colors = [
     Phaser.Display.Color.ValueToColor(0xccddcc),
@@ -103,7 +105,7 @@ function setupTweensForGrassLandWhenGameLevelFree(
   scene.tweens.add({
     targets: colorObj,
     t: 1,
-    duration: 90000,
+    duration: gameLevel.isAuto ? 75000 : 90000,
     ease: "Linear",
     repeat: -1,
     delay: 6000,

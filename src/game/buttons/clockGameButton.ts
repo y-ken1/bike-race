@@ -1,10 +1,10 @@
-import type { GameLevel } from "../../types";
+import type { GameLevelKey } from "../../types";
 
 export function createClockGameButton(
   scene: Phaser.Scene,
   x: number,
   y: number,
-  type: "TIME" | "reset" | "help" | GameLevel,
+  type: "TIME" | "reset" | "help" | GameLevelKey,
   handleClick: () => void
 ) {
   // outer
@@ -33,6 +33,8 @@ export function createClockGameButton(
     btnLabel = "Race 2";
   } else if (type === "free") {
     btnLabel = "Free";
+  } else if (type === "auto") {
+    btnLabel = "Auto";
   } else if (type === "ghost_1") {
     btnLabel = "Ghost1";
   } else if (type === "ghost_2") {

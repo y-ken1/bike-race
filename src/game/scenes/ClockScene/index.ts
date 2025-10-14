@@ -16,6 +16,7 @@ import {
 } from "../../../utils/util";
 import { HandleButton } from "../../buttons/handleButton";
 import { createClockEmitter } from "./emitter";
+import { GameLevelConfig } from "../../config/gameLevelConfig";
 
 export class ClockScene extends Scene {
   bg!: Phaser.GameObjects.Rectangle;
@@ -134,11 +135,18 @@ export class ClockScene extends Scene {
       TIME: () => {
         this.scene.start("ClockScene");
       },
-      easy: () => this.scene.start("MainScene", { gameLevel: "easy" }),
-      hard: () => this.scene.start("MainScene", { gameLevel: "hard" }),
-      ghost_1: () => this.scene.start("MainScene", { gameLevel: "ghost_1" }),
-      ghost_2: () => this.scene.start("MainScene", { gameLevel: "ghost_2" }),
-      free: () => this.scene.start("MainScene", { gameLevel: "free" }),
+      easy: () =>
+        this.scene.start("MainScene", { gameLevel: GameLevelConfig.easy }),
+      hard: () =>
+        this.scene.start("MainScene", { gameLevel: GameLevelConfig.hard }),
+      ghost_1: () =>
+        this.scene.start("MainScene", { gameLevel: GameLevelConfig.ghost_1 }),
+      ghost_2: () =>
+        this.scene.start("MainScene", { gameLevel: GameLevelConfig.ghost_2 }),
+      free: () =>
+        this.scene.start("MainScene", { gameLevel: GameLevelConfig.free }),
+      auto: () =>
+        this.scene.start("MainScene", { gameLevel: GameLevelConfig.auto }),
       reset: () => {
         if (this.resetMsgContainer.visible) return;
         if (this.helpContainer.visible) return;

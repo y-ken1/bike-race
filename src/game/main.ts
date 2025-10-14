@@ -29,6 +29,9 @@ const config: Phaser.Types.Core.GameConfig = {
     width: 640,
     height: 360,
   },
+  fps: {
+    target: 60,
+  },
   input: {
     gamepad: true,
   },

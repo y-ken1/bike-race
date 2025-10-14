@@ -53,6 +53,9 @@ const PositionData = {
     FREE: (_scene: Phaser.Scene) => {
       return { x: 51, y: 207 };
     },
+    AUTO: (_scene: Phaser.Scene) => {
+      return { x: 589, y: 135 };
+    },
   },
 };
 
@@ -171,5 +174,12 @@ export function createClockGameButtons(
     PositionData.CLOCK_GAME.FREE(scene).y,
     "free",
     handleClockGameButton.free
+  );
+  createClockGameButton(
+    scene,
+    PositionData.CLOCK_GAME.AUTO(scene).x,
+    PositionData.CLOCK_GAME.AUTO(scene).y,
+    "auto",
+    handleClockGameButton.auto
   );
 }

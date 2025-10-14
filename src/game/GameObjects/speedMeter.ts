@@ -1,3 +1,5 @@
+import type { GameState } from "../../types";
+
 const ARC_ANGLE_FROM = Phaser.Math.DegToRad(140);
 const ARC_ANGLE_TO = Phaser.Math.DegToRad(380);
 const ARC_ANGLE = Math.abs(ARC_ANGLE_FROM - ARC_ANGLE_TO);
@@ -64,13 +66,13 @@ export class SpeedMeter {
     this.bgRect.setVisible(false);
     this.txtKM.setVisible(false);
   }
-  setSpeed(speed: number, maxSpeed: number, isGameReady: boolean) {
+  setSpeed(speed: number, maxSpeed: number, gameState: GameState) {
     const rate = (ARC_ANGLE * speed) / maxSpeed;
     const angle = ARC_ANGLE_FROM + rate;
     this.drawOuterArc();
     this.drawInnerArc(angle, rate);
     this.drawNeadle(angle);
-    if (isGameReady) {
+    if (gameState === "ready") {
       this.text.text = `--`;
     } else {
       this.text.text = `${(0.6 * speed).toFixed(0)}`;

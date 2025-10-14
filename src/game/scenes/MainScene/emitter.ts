@@ -1,4 +1,40 @@
+// carEmitter!: Phaser.GameObjects.Particles.ParticleEmitter;
+// carCurveEmitter!: Phaser.GameObjects.Particles.ParticleEmitter;
+
+import type { Car } from "../../../types";
+import { isCarOutOfRoad } from "./car";
+
+export type GameEmitter = {
+  carRunning: Phaser.GameObjects.Particles.ParticleEmitter;
+  carCurve: Phaser.GameObjects.Particles.ParticleEmitter;
+  confetti: Phaser.GameObjects.Particles.ParticleEmitter;
+};
+
 export function createCarEmitter(
+  scene: Phaser.Scene,
+  playerCar: Car,
+  carContainer: Phaser.GameObjects.Container
+) {
+  const carRunning = createCarRunningEmitter(
+    scene,
+    playerCar.image.x + 20,
+    playerCar.image.y - 3,
+    carContainer
+  );
+
+  carRunning.start();
+
+  const carCurve = createCarCurveEmitter(
+    scene,
+    playerCar.image.x - 90,
+    playerCar.image.y + 20,
+    carContainer
+  );
+  carCurve.start();
+
+  return { carRunning, carCurve };
+}
+function createCarRunningEmitter(
   scene: Phaser.Scene,
   x: number,
   y: number,
@@ -24,7 +60,7 @@ export function createCarEmitter(
   return emitter;
 }
 
-export function createCarCurveEmitter(
+function createCarCurveEmitter(
   scene: Phaser.Scene,
   x: number,
   y: number,
@@ -79,4 +115,60 @@ export function createConfettiEmitter(
   emitter.stop();
 
   return emitter;
+}
+
+export function applyEmmiterWithCarSpeed(
+  emitter: Phaser.GameObjects.Particles.ParticleEmitter,
+  playerCar: Car,
+  steer: number,
+  maxSpeed: number
+) {
+  if (playerCar.speed < 30) {
+    emitter.visible = false;
+  } else {
+    emitter.visible = true;
+
+    if (steer === 0) {
+      emitter.x = playerCar.image.x + 25;
+      emitter.y = playerCar.image.y - 17;
+    } else {
+      const rad = playerCar.image.rotation;
+
+      const baseX = 25;
+      const baseY = -17;
+      emitter.x =
+        playerCar.image.x + baseX * Math.cos(rad) - baseY * Math.sin(rad);
+
+      emitter.y =
+        playerCar.image.y + baseX * Math.sin(rad) + baseY * Math.cos(rad);
+    }
+
+    emitter.setScale((1.32 * playerCar.speed) / maxSpeed);
+    emitter.setAlpha((3 * playerCar.speed) / maxSpeed);
+    emitter.setAngle(playerCar.image.angle * 0.8);
+  }
+}
+
+export function applyCurveEmmiterWithCarSpeed(
+  emitter: Phaser.GameObjects.Particles.ParticleEmitter,
+  playerCar: Car,
+  steer: number,
+  maxSpeed: number
+) {
+  if (
+    isCarOutOfRoad(playerCar) ||
+    playerCar.speed < 30 ||
+    Math.abs(steer) < 2
+  ) {
+    emitter.visible = false;
+  } else {
+    const _x = playerCar.image.x + (playerCar.lr > 0 ? 50 : -50);
+    const _y = playerCar.image.y + (playerCar.lr > 0 ? 16 : 6);
+    const _gx = 10000 * Math.sign(playerCar.lr);
+    emitter.x = _x;
+    emitter.y = _y;
+    emitter.setParticleGravity(_gx, 10);
+    emitter.setAlpha(Math.max(0, (playerCar.speed - 130) / maxSpeed));
+    emitter.visible = true;
+  }
 }
