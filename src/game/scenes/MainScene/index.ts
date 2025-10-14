@@ -374,6 +374,11 @@ export class MainScene extends Scene {
 
     if (this.gameState === "running") {
       this.updateElapseForHistoryIndex++;
+      if (
+        this.gameLevel.mode !== "ghost" &&
+        this.updateElapseForHistoryIndex > 100000
+      )
+        [(this.updateElapseForHistoryIndex = 0)];
     }
 
     this.applyNaturalSlowdown(playerCar);
@@ -420,9 +425,18 @@ export class MainScene extends Scene {
           // playerCar.speed = MAX_SPEED * 2 + ud * 10;
           playerCar.speed = Math.max(
             370,
-            Math.min(playerCar.mileage * 0.35, 300) - ud * 7
+            Math.min(playerCar.mileage * 0.35, 300) - ud * 8
           );
-          playerCar.speed = Math.min(playerCar.speed, MAX_SPEED * 4);
+          playerCar.speed =
+            Math.min(playerCar.speed, MAX_SPEED * 4) +
+            Math.floor(Math.sin(playerCar.mileage / 5000) * 200);
+          if (playerCar.y < 500) {
+            playerCar.speed *= 0.3;
+          } else if (playerCar.y < 1000) {
+            playerCar.speed *= 0.5;
+          } else if (playerCar.y < 1500) {
+            playerCar.speed *= 0.75;
+          }
         }
         this.applyCarY(car);
       } else if (

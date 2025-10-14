@@ -43,7 +43,7 @@ export const ROAD_DATA_LR_UD: Record<GameLevelKey, LevelRoadLRUD> = {
     ],
   },
   auto: {
-    ENEMY_NUM: 4,
+    ENEMY_NUM: 7,
     DATA_LR: [
       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, 6, 0, 0, 0, 0, 10, 10, 10, 10, 10,
       10, 6, 6, 6, 0, 0, -5, -7, -7, -7, 6, 6, 6, 0, 0, 0, 0, 0, 6, 6, 6, 0, 0,
