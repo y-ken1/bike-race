@@ -1,4 +1,7 @@
-export function createGameWrapper(scene: Phaser.Scene) {
+export function createGameWrapper(
+  scene: Phaser.Scene,
+  isAuto: boolean = false
+) {
   const gameWrapper = scene.add.sprite(
     scene.cameras.main.centerX,
     182,
@@ -18,7 +21,7 @@ export function createGameWrapper(scene: Phaser.Scene) {
   g.strokeRoundedRect(128, 50, 382, 265, 5);
   g.setDepth(9999);
 
-  scene.add
+  const title = scene.add
     .bitmapText(
       scene.cameras.main.width / 2,
       24,
@@ -29,4 +32,22 @@ export function createGameWrapper(scene: Phaser.Scene) {
     .setAlpha(0.35)
     .setOrigin(0.5)
     .setDepth(99999999);
+
+  if (isAuto) {
+    gameWrapper.alpha = 0;
+    g.alpha = 0;
+    title.alpha = 0;
+    scene.add
+      .rectangle(0, 0, 259, 900, 0x0f0f0f)
+      .setDepth(9999999999)
+      .setAlpha(0.95);
+    scene.add
+      .rectangle(635, 0, 259, 900, 0x0f0f0f)
+      .setDepth(9999999999)
+      .setAlpha(0.95);
+    scene.add
+      .rectangle(100, 347, 900, 30, 0x0f0f0f)
+      .setDepth(9999999999)
+      .setAlpha(0.95);
+  }
 }

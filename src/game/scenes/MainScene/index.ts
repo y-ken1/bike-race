@@ -188,7 +188,7 @@ export class MainScene extends Scene {
   }
 
   create() {
-    createGameWrapper(this);
+    createGameWrapper(this, this.gameLevel.isAuto);
     this.createButton();
     this.gamepad = new MyGamepad(this);
 
@@ -507,8 +507,16 @@ export class MainScene extends Scene {
       for (let i = 0; i < this.cars.length; i++) {
         this.gameContainer.car.sendToBack(this.cars[i].image);
         if (!this.cars[i].isPlayer) {
-          this.cars[i].image.y -= this.cars[i].image.getBounds().height * 1.2;
+          this.cars[i].image.y -= this.cars[i].image.getBounds().height * 1.4;
+          this.cars[i].image.alpha = 1;
         }
+      }
+    }
+
+    // 小さすぎるゴーストの画像を非表示する
+    if (this.gameLevel.mode === "ghost") {
+      if (this.cars[1].image.scaleX < 0.02) {
+        this.cars[1].image.setVisible(false);
       }
     }
   }
