@@ -144,6 +144,7 @@ export class MainScene extends Scene {
 
   lastCooldownActionTimes!: LastCooldownActionTimes;
   courseData!: CourseData;
+  tire!: Phaser.GameObjects.Rectangle;
 
   constructor() {
     super("MainScene");
@@ -248,6 +249,9 @@ export class MainScene extends Scene {
 
     const playerCar = this.cars[0];
     const carEmiter = createCarEmitter(this, playerCar, carContainer);
+
+    this.tire = this.add.rectangle(0, 0, 10, 1, 0xababab).setAlpha(0.1);
+    carContainer.add(this.tire);
 
     this.createBoardData();
     this.courseData = makeCourseData(this.roadData);
@@ -517,6 +521,26 @@ export class MainScene extends Scene {
     if (this.gameLevel.mode === "ghost") {
       if (this.cars[1].image.scaleX < 0.02) {
         this.cars[1].image.setVisible(false);
+      }
+    }
+    // タイヤの変化
+    {
+      const baseX = 0;
+      const baseY = -15;
+      const rad = playerCar.image.rotation;
+      const _sin = Math.sin(rad);
+      const _cos = Math.cos(rad);
+      const _x = playerCar.image.x + baseX * _cos - baseY * _sin;
+      const _y = playerCar.image.y + baseX * _sin + baseY * _cos;
+
+      const _sinY = Math.sin(playerCar.y * 6);
+      const yOffset = 6 * _sinY + 1;
+      this.tire.setPosition(_x, _y + yOffset);
+      this.tire.setRotation(playerCar.image.rotation);
+      if (_sinY < 0) {
+        this.tire.alpha = 0;
+      } else {
+        this.tire.alpha = Math.max(0.6, (0.9 * playerCar.speed) / MAX_SPEED);
       }
     }
   }

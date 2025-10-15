@@ -136,11 +136,10 @@ export function applyEmmiterWithCarSpeed(
 
       const baseX = 25;
       const baseY = -17;
-      emitter.x =
-        playerCar.image.x + baseX * Math.cos(rad) - baseY * Math.sin(rad);
-
-      emitter.y =
-        playerCar.image.y + baseX * Math.sin(rad) + baseY * Math.cos(rad);
+      const _sin = Math.sin(rad);
+      const _cos = Math.cos(rad);
+      emitter.x = playerCar.image.x + baseX * _cos - baseY * _sin;
+      emitter.y = playerCar.image.y + baseX * _sin + baseY * _cos;
     }
 
     emitter.setScale((1.32 * playerCar.speed) / maxSpeed);
